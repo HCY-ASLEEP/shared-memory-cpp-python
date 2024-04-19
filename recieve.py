@@ -9,7 +9,7 @@ class sharedMemoryAdapter:
         self.shared=shared
         self.offset=0
 
-    def getJson(self):
+    def readJson(self):
         # 读取 json 文件的长度
         jsonSizes = np.ndarray((1,), dtype=np.int32, buffer=self.shared.buf, offset=self.offset)
         self.offset+=jsonSizes.dtype.itemsize
@@ -23,14 +23,15 @@ class sharedMemoryAdapter:
         parsedJson = json.loads(jsonStrData)
         print("Received JSON data:", parsedJson)
     
-    def getImage(self):
+    def readImage(self):
         # 获取图片的维度大小信息
         dimensions = np.ndarray((3,), dtype=np.int32, buffer=self.shared.buf, offset=self.offset)
-        height, width, channels = dimensions
         self.offset += 3 * dimensions.dtype.itemsize
+        height, width, channels = dimensions
         # 获取图片
         image_data = np.ndarray((height, width, channels), dtype=np.uint8, buffer=self.shared.buf, offset=self.offset)
         self.offset += height*width*channels 
+        # 展示图片
         cv2.imshow("Image from C++", image_data)
         key=cv2.waitKey(0)
         # 检查用户是否按下了 'q' 键，如果是则退出程序
@@ -39,11 +40,14 @@ class sharedMemoryAdapter:
 
 
 if __name__=="__main__":
+    shmName="shared_image_json"
+    semEmpty="cpp2python-empty"
+    semFull="cpp2python-full"
     # 关联到共享内存
-    shared = shm.SharedMemory(name="shared_image_json")
+    shared = shm.SharedMemory(name=shmName)
     # 关联到信号量
-    empty = posix_ipc.Semaphore("cpp2python-empty")
-    full = posix_ipc.Semaphore("cpp2python-full")
+    empty = posix_ipc.Semaphore(semEmpty)
+    full = posix_ipc.Semaphore(semFull)
     while(True):
         print("full not acquired")
         
@@ -52,8 +56,8 @@ if __name__=="__main__":
         print("full acquired")
         
         shma=sharedMemoryAdapter(shared)
-        shma.getJson()
-        shma.getImage()
+        shma.readJson()
+        shma.readImage()
         
         empty.release()
     

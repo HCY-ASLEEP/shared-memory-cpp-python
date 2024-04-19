@@ -81,11 +81,16 @@ class shareMemoryAdapter {
 
 
 int main() {
+    const int shmBufSize=2000000;
+    const char* shmName="shared_image_json";
+    const char* semEmptyName="cpp2python-empty";
+    const char* semFullName="cpp2python-full";
+    const char* imagePath="/home/devenv/2024-01-19_13-35.png";
     // Make sure you have set the correct size of the shared buffer
-    shareMemoryAdapter shm("shared_image_json",2000000,"cpp2python-empty","cpp2python-full");
+    shareMemoryAdapter shm(shmName,shmBufSize,semEmptyName,semFullName);
     while(true) {
         // OpenCV operations
-        cv::Mat image = cv::imread("/home/devenv/2024-01-19_13-35.png");
+        cv::Mat image = cv::imread(imagePath);
         // Create RapidJSON document
         rapidjson::Document doc;
         doc.SetObject();
