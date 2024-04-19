@@ -4,15 +4,65 @@
 #include <semaphore.h>
 #include <fcntl.h>
 #include <sys/stat.h>
+#include <rapidjson/document.h>
+#include <rapidjson/stringbuffer.h>
+#include <rapidjson/writer.h>
 
 class shareMemoryAdapter {
   private:
     boost::interprocess::shared_memory_object shm;
     boost::interprocess::mapped_region region;
-    void* shmp; // share memory pointer
+    char* shmp; // share memory pointer
     sem_t* empty;
     sem_t* full;
     int offset;
+    void write(cv::Mat& mat) {
+        int size= mat.total() * mat.elemSize();
+
+        // Write image dimensions to shared memory
+        int* dimensions = (int*)(shmp + offset);
+        dimensions[0] = mat.rows;     // Height
+        dimensions[1] = mat.cols;     // Width
+        dimensions[2] = mat.channels(); // Channels
+        offset+=sizeof(int)*3;
+
+        std::cout<<dimensions[0]<<std::endl;
+        std::cout<<dimensions[1]<<std::endl;
+        std::cout<<dimensions[2]<<std::endl;
+        std::cout<<"----------------"<<std::endl;
+        std::cout<<offset<<std::endl;
+        
+        // Copy image data to shared memory
+        std::memcpy(shmp + offset, mat.data, size);
+        offset+=size;
+        
+        std::cout<<size<<std::endl;
+        std::cout<<offset<<std::endl;
+
+    }
+    void write(rapidjson::Document& doc) {
+        // Convert JSON document to string
+        rapidjson::StringBuffer buffer;
+        rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
+        doc.Accept(writer);
+        std::string data = buffer.GetString();
+        int size=data.size();
+
+        std::cout<<size<<std::endl;
+
+        // Write size
+        int* head=(int*)(shmp+offset);
+        head[0]=size;
+        offset+=sizeof(int);
+
+        // Write JSON data to shared memory
+        std::memcpy(shmp+offset, data.c_str(), size);
+        offset+=size;
+        
+
+        std::cout<<offset<<std::endl;
+    }
+
   public:
     shareMemoryAdapter(const char* shmName,const int size,const char* semEmptyName,const char* semFullName) {
         // Set access flags
@@ -26,7 +76,7 @@ class shareMemoryAdapter {
         // Map the whole shared memory in this process
         region=std::move(boost::interprocess::mapped_region(shm,mode));
         // Get share memory pointer
-        shmp=region.get_address();
+        shmp=static_cast<char*>(region.get_address());
         // create semaphore
         // 0664 : access ,means rw-rw-r--
         empty = sem_open(semEmptyName,O_CREAT,0664,1);
@@ -37,23 +87,16 @@ class shareMemoryAdapter {
     void clear() {
         offset=0;
     }
-    void writeCvMat(cv::Mat& mat) {
-        int matSize= mat.total() * mat.elemSize();
+    void write(rapidjson::Document& jsonDoc, cv::Mat& mat) {
         // Waiting for empty buffer
         sem_wait(empty);
-        // Write image dimensions to shared memory
-        int* dimensions = static_cast<int*>(shmp) + offset;
-        dimensions[0] = mat.rows;     // Height
-        dimensions[1] = mat.cols;     // Width
-        dimensions[2] = mat.channels(); // Channels
-        offset+=sizeof(int)*3;
-        // Copy image data to shared memory
-        std::memcpy(static_cast<char*>(shmp) + offset, mat.data, matSize);
+        
+        // Write into shm
+        write(jsonDoc);
+        write(mat);
+        
         // Signal full buffer
         sem_post(full);
-        offset+=matSize;
-    }
-    void writeJson() {
 
     }
 };
@@ -62,10 +105,21 @@ class shareMemoryAdapter {
 int main() {
     shareMemoryAdapter shm("shared_image",2000000,"cpp2python-empty","cpp2python-full");
 
-    shm.clear();
     // OpenCV operations
     cv::Mat image = cv::imread("/home/devenv/2024-01-19_13-35.png");
-    shm.writeCvMat(image);
+    
+    // Create RapidJSON document
+    rapidjson::Document doc;
+    doc.SetObject();
+
+    // Add data to JSON document
+    rapidjson::Value key("name");
+    rapidjson::Value value("John");
+    doc.AddMember(key, value, doc.GetAllocator());
+
+    shm.clear();
+    shm.write(doc,image);
+    
     while(true);
 }
 
