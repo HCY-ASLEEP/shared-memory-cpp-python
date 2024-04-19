@@ -15,12 +15,12 @@ class sharedMemoryAdapter:
         self.offset+=jsonSizes.dtype.itemsize
         jsonSize=jsonSizes[0]
         # 获取 json 的字节编码
-        jsonDataBytes=self.shared.buf[self.offset:self.offset+jsonSize]
+        jsonByteData=self.shared.buf[self.offset:self.offset+jsonSize]
         self.offset+=jsonSize
         # 将bytes数据转换为字符串
-        jsonData = jsonDataBytes.tobytes().decode('utf-8')
+        jsonStrData = jsonByteData.tobytes().decode('utf-8')
         # 加载JSON数据
-        parsedJson = json.loads(jsonData)
+        parsedJson = json.loads(jsonStrData)
         print("Received JSON data:", parsedJson)
     
     def getImage(self):
@@ -41,11 +41,9 @@ class sharedMemoryAdapter:
 if __name__=="__main__":
     # 关联到共享内存
     shared = shm.SharedMemory(name="shared_image_json")
-    
     # 关联到信号量
     empty = posix_ipc.Semaphore("cpp2python-empty")
     full = posix_ipc.Semaphore("cpp2python-full")
-    
     while(True):
         print("full not acquired")
         

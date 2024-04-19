@@ -18,14 +18,12 @@ class shareMemoryAdapter {
     int offset;
     void write(cv::Mat& mat) {
         int size= mat.total() * mat.elemSize();
-
         // Write image dimensions to shared memory
         int* dimensions = (int*)(shmp + offset);
         dimensions[0] = mat.rows;     // Height
         dimensions[1] = mat.cols;     // Width
         dimensions[2] = mat.channels(); // Channels
         offset+=sizeof(int)*3;
-
         // Copy image data to shared memory
         std::memcpy(shmp + offset, mat.data, size);
         offset+=size;
@@ -37,12 +35,10 @@ class shareMemoryAdapter {
         doc.Accept(writer);
         std::string data = buffer.GetString();
         int size=data.size();
-
         // Write size
         int* head=(int*)(shmp+offset);
         head[0]=size;
         offset+=sizeof(int);
-
         // Write JSON data to shared memory
         std::memcpy(shmp+offset, data.c_str(), size);
         offset+=size;
@@ -75,11 +71,9 @@ class shareMemoryAdapter {
     void write(rapidjson::Document& jsonDoc, cv::Mat& mat) {
         // Waiting for empty buffer
         sem_wait(empty);
-
         // Write into shm
         write(jsonDoc);
         write(mat);
-
         // Signal full buffer
         sem_post(full);
     }
@@ -87,21 +81,19 @@ class shareMemoryAdapter {
 
 
 int main() {
+    // Make sure you have set the correct size of the shared buffer
     shareMemoryAdapter shm("shared_image_json",2000000,"cpp2python-empty","cpp2python-full");
-
     while(true) {
         // OpenCV operations
         cv::Mat image = cv::imread("/home/devenv/2024-01-19_13-35.png");
-
         // Create RapidJSON document
         rapidjson::Document doc;
         doc.SetObject();
-
         // Add data to JSON document
         rapidjson::Value key("name");
         rapidjson::Value value("John");
         doc.AddMember(key, value, doc.GetAllocator());
-
+        // Everytime to write sth, make sure that you have clear the history
         shm.clear();
         shm.write(doc,image);
     }
