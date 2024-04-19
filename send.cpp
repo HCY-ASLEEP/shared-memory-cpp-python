@@ -1,6 +1,9 @@
 #include <opencv2/opencv.hpp>
 #include <boost/interprocess/shared_memory_object.hpp>
 #include <boost/interprocess/mapped_region.hpp>
+#include <semaphore.h>
+#include <fcntl.h>
+#include <sys/stat.h>
 
 int main() {
     // Create/Open shared memory
@@ -12,22 +15,26 @@ int main() {
 
     // OpenCV operations
     cv::Mat image = cv::imread("/home/devenv/2024-01-19_13-35.png");
+    
+    // create semaphore
+    // 0664 : access ,means rw-rw-r--
+    sem_t* empty = sem_open("cpp2python-empty",O_CREAT,0664,1);
+    sem_t* full = sem_open("cpp2python-full",O_CREAT,0664,0);
+    
+    // Waiting for empty buffer
+    sem_wait(empty); 
 
     // Write image dimensions to shared memory
     int* dimensions = static_cast<int*>(region.get_address());
     dimensions[0] = image.rows;     // Height
     dimensions[1] = image.cols;     // Width
     dimensions[2] = image.channels(); // Channels
-
-    std::cout<<dimensions[0]<<std::endl;
-    std::cout<<dimensions[1]<<std::endl;
-    std::cout<<dimensions[2]<<std::endl;
-    std::cout<<image.total() * image.elemSize()<<std::endl;
+   
     // Copy image data to shared memory
     std::memcpy(static_cast<char*>(region.get_address()) + sizeof(int) * 3, image.data, image.total() * image.elemSize());
-    // std::cout<<dimensions[0]<<std::endl;
-    // std::cout<<dimensions[1]<<std::endl;
-    // std::cout<<dimensions[2]<<std::endl;
+   
+    // Signal full buffer
+    sem_post(full);
 
     while(true) {}
 
