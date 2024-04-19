@@ -11,3 +11,7 @@
     ```bash
     sudo apt-get install libboost-all-dev
     ```
+### Compile
+```bash
+g++ send.cpp -o send.exe -lopencv_core -lopencv_highgui -lopencv_imgproc -lopencv_imgcodecs
+```
